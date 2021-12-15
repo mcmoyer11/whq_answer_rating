@@ -20,12 +20,14 @@ library(rcompanion)
 
 #Set the working directory to whereever you have your raw data and the "helpers.R" file
 setwd("/Users/morganmoyer/Dropbox/Moyer_research/Embedded_Questions/Dissertation/Experiments/Answer_rating/data")
-source("helpers.R")
+source("../../helpers.R")
 
 d <- read.csv("ar_raw.csv")
+View(d)
+nrow(d) #15079
 
 d$likert.f <- as.factor(d$response)
-d$response <-as.numeric(d$response)
+d$response.n <-as.numeric(as.character(d$response)) # have to first transform to character
 
 high = subset(d, d$trial=="high")
 low = subset(d, d$trial=="low")
@@ -229,4 +231,149 @@ agr = test %>%
 ggplot(agr, aes(x=reorder(subject,MeanLikert),y=MeanLikert)) +
   geom_bar(stat="identity",color="black",fill="gray80") +
   geom_errorbar(aes(ymin=YMin,ymax=YMax),width=.25)
+
+
+
+
+vrnc = test %>%
+  group_by(trial,answer, modal) %>%
+  summarise(mean_likert = mean(response.n), variance = var(response.n))
+dodge = position_dodge(.9)
+View(vrnc)
+
+ggplot(vrnc, aes(answer,y=variance,fill=modal)) +
+  facet_wrap(~trial) +
+  # facet_grid(trial ~ wh, margins = TRUE) +
+  geom_bar(position=dodge,stat="identity") +
+  ggtitle("Variance")
+
+min.mean.sd.max <- function(x) {
+  r <- c(min(x), mean(x) - sd(x), mean(x), mean(x) + sd(x), max(x))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+# ggplot code
+test %>%
+  filter(modal %in% c("modal")) %>%
+  ggplot(., aes(answer, y = response)) +
+  facet_wrap(~trial) +
+  stat_summary(fun.data = min.mean.sd.max, geom = "boxplot") + 
+  geom_jitter(position=position_jitter(width=.1), size=.5) + 
+  ggtitle("Modal: Boxplot with mean, 95%CI, min and max.") + 
+  xlab("Answer") + 
+  ylab("Likert")
+
+
+test %>%
+  filter(modal %in% c("nomodal")) %>%
+  ggplot(., aes(answer, y = response)) +
+  facet_wrap(~wh) +
+  stat_summary(fun.data = min.mean.sd.max, geom = "boxplot") + 
+  geom_jitter(position=position_jitter(width=.1), size=.5) + 
+  ggtitle("NoModal: Boxplot with mean, 95%CI, min and max.") + 
+  xlab("Ans`wer") + 
+  ylab("Likert")
+
+
+
+##########3
+# MEDIANS
+m = msmo %>%
+  group_by(answer, trial) %>%
+  summarise(mean_likert = mean(response.n), median = median(response.n))
+View(m)
+
+
+########################################################
+########################################################
+# TESTING VARIANCE - HOMOSCEDASTICITY
+########################################################
+########################################################
+# Compute a Fligner-Killeen test (can violate assumptions of normality)
+# http://www.cookbook-r.com/Statistical_analysis/Homogeneity_of_variance/
+
+########################################################
+# FILGNER-KILLEEN TEST ACROSS ALL DATA
+# http://www.cookbook-r.com/Statistical_analysis/Homogeneity_of_variance/
+View(test)
+
+fligner.test(response.n ~ modal, data = test)
+# Fligner-Killeen:med chi-squared = 2.5055, df = 1, p-value = 0.1135
+fligner.test(response.n ~ answer, data = test)
+# Fligner-Killeen:med chi-squared = 1355.3, df = 3, p-value < 2.2e-16 ***
+fligner.test(response.n ~ trial, data = test)
+# Fligner-Killeen:med chi-squared = 27.84, df = 1, p-value = 1.318e-07 *****
+
+
+fligner.test(response.n ~ interaction(modal,answer), data = test)
+# Fligner-Killeen:med chi-squared = 1360.2, df = 7, p-value < 2.2e-16 ***
+fligner.test(response.n ~ interaction(modal,trial), data = test)
+# Fligner-Killeen:med chi-squared = 29.969, df = 3, p-value = 1.401e-06 ***
+fligner.test(response.n ~ interaction(answer,trial), data = test)
+# Fligner-Killeen:med chi-squared = 1313.3, df = 7, p-value < 2.2e-16 ***
+
+
+mo = d %>%
+  filter(answer %in% c("MO "))
+fligner.test(response.n ~ modal, data = mo)
+# Fligner-Killeen:med chi-squared = 0.90236, df = 1, p-value = 0.3422
+fligner.test(response.n ~ trial, data = mo)
+# Fligner-Killeen:med chi-squared = 1.2987, df = 1, p-value = 0.2545
+fligner.test(response.n ~ interaction(modal,trial), data = mo)
+# Fligner-Killeen:med chi-squared = 2.0116, df = 3, p-value = 0.57
+
+
+ms = d %>%
+  filter(answer %in% c("MS "))
+fligner.test(response.n ~ modal, data = ms)
+# Fligner-Killeen:med chi-squared = 0.62547, df = 1, p-value = 0.429
+fligner.test(response.n ~ trial, data = ms)
+# Fligner-Killeen:med chi-squared = 8.5081, df = 1, p-value = 0.003536 **
+fligner.test(response.n ~ interaction(modal,trial), data = ms)
+# Fligner-Killeen:med chi-squared = 8.6068, df = 3, p-value = 0.035
+
+hist(ms$response.n, col="pink")
+hist(mo$response.n, col="pink")
+
+msh = ms %>%
+  filter(trial %in% c("high"))
+msl = ms %>%
+  filter(trial %in% c("low"))
+hist(msh$response.n, col="pink")
+hist(msl$response.n, col="pink")
+
+moma = d %>%
+  filter(answer %in% c("MO ","MA "))
+fligner.test(response.n ~ answer, data = moma)
+# Fligner-Killeen:med chi-squared = 905.65, df = 1, p-value < 2.2e-16 **
+fligner.test(response.n ~ modal, data = moma)
+# Fligner-Killeen:med chi-squared = 1.5951, df = 1, p-value = 0.2066
+
+
+msmo = d %>%
+  filter(answer %in% c("MS ","MO "))
+fligner.test(response.n ~ answer, data = msmo)
+# Fligner-Killeen:med chi-squared = 17.57, df = 1, p-value = 2.77e-05 ***
+fligner.test(response.n ~ modal, data = msmo)
+# Fligner-Killeen:med chi-squared = 0.58112, df = 1, p-value = 0.4459
+fligner.test(response.n ~ trial, data = msmo)
+# Fligner-Killeen:med chi-squared = 1.7787, df = 1, p-value = 0.1823
+fligner.test(response.n ~ interaction(modal,trial), data = msmo)
+# Fligner-Killeen:med chi-squared = 6.7303, df = 3, p-value = 0.08101
+
+
+ma = d %>%
+  filter(answer %in% c("MA "))
+fligner.test(response.n ~ modal, data = ma)
+# Fligner-Killeen:med chi-squared = 2.681, df = 1, p-value = 0.1016
+fligner.test(response.n ~ trial, data = ma)
+# Fligner-Killeen:med chi-squared = 0.5112, df = 1, p-value = 0.4746
+fligner.test(response.n ~ interaction(trial,modal), data = ma)
+# Fligner-Killeen:med chi-squared = 3.5004, df = 3, p-value = 0.3207
+
+
+hist(ms$response.n, col="pink")
+hist(mo$response.n, col="pink")
+# check to make sure they have the same number of observations --- yes they do
 
